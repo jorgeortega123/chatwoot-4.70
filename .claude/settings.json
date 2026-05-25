@@ -3,7 +3,19 @@
     "allow": [
       "Bash(git config *)",
       "Bash(git branch *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(xargs sed -i 's/\"POWERED_BY\": \"Powered by Chatwoot\"/\"POWERED_BY\": \"Con Jandrea\"/g')",
+      "Bash(xargs sed -i 's/\"BRANDING_TEXT\": \"Powered by Chatwoot\"/\"BRANDING_TEXT\": \"Con Jandrea\"/g')",
+      "Bash(xargs sed -i 's/\"POWERED_BY\": \"Chatwoot AI\"/\"POWERED_BY\": \"Jandrea AI\"/g')",
+      "Bash(xargs sed -i 's/\"POWERED_BY\": \".*Chatwoot[^\"]*\"/\"POWERED_BY\": \"Con Jandrea\"/g')",
+      "Bash(xargs sed -i 's/\"POWERED_BY\": \".*Chatwoot[^\"]*\"/\"POWERED_BY\": \"Jandrea AI\"/g')",
+      "Bash(xargs sed -i 's/\"BRANDING_TEXT\": \".*Chatwoot[^\"]*\"/\"BRANDING_TEXT\": \"Con Jandrea\"/g')",
+      "Bash(xargs sed -i 's/\"POWERED_BY\": \"Con Jandrea\"/\"POWERED_BY\": \"Powered by Jandrea\"/g')",
+      "Bash(xargs sed -i 's/\"BRANDING_TEXT\": \"Con Jandrea\"/\"BRANDING_TEXT\": \"Powered by Jandrea\"/g')",
+      "Read(//proc/**)",
+      "Bash(wmic OS get TotalVisibleMemorySize /value)",
+      "Bash(docker version *)",
+      "Bash(docker info *)"
     ]
   }
 }

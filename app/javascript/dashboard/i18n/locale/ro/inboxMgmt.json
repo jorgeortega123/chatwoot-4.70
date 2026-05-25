@@ -975,7 +975,7 @@
         "USER_MESSAGE": "Salut",
         "AGENT_MESSAGE": "Bună"
       },
-      "BRANDING_TEXT": "Oferit de Chatwoot",
+      "BRANDING_TEXT": "Powered by Jandrea",
       "SCRIPT_SETTINGS": "\nwindow.chatwootSettings = {options};"
     },
     "EMAIL_PROVIDERS": {
