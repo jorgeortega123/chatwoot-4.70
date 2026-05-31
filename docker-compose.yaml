@@ -1,119 +1,114 @@
-version: '3'
+x-base-config: &base-config
+  image: mi-chatwoot:4.7
+  volumes:
+    - chatwoot-storage:/app/storage
+  environment:
+    - FRONTEND_URL=${FRONTEND_URL}
+    - SECRET_KEY_BASE=${SECRET_KEY_BASE}
+    - RAILS_ENV=${RAILS_ENV}
+    - NODE_ENV=${NODE_ENV}
+    - INSTALLATION_ENV=${INSTALLATION_ENV}
+    - RAILS_LOG_TO_STDOUT=${RAILS_LOG_TO_STDOUT}
+    - LOG_LEVEL=${LOG_LEVEL}
+    - DEFAULT_LOCALE=${DEFAULT_LOCALE}
+    - POSTGRES_HOST=${POSTGRES_HOST}
+    - POSTGRES_PORT=${POSTGRES_PORT}
+    - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+    - POSTGRES_USERNAME=${POSTGRES_USERNAME}
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    - REDIS_URL=${REDIS_URL}
+    - ENABLE_ACCOUNT_SIGNUP=${ENABLE_ACCOUNT_SIGNUP}
+    - ACTIVE_STORAGE_SERVICE=${ACTIVE_STORAGE_SERVICE}
+    - STORAGE_BUCKET_NAME=${STORAGE_BUCKET_NAME}
+    - STORAGE_ACCESS_KEY_ID=${STORAGE_ACCESS_KEY_ID}
+    - STORAGE_SECRET_ACCESS_KEY=${STORAGE_SECRET_ACCESS_KEY}
+    - STORAGE_REGION=${STORAGE_REGION}
+    - STORAGE_FORCE_PATH_STYLE=${STORAGE_FORCE_PATH_STYLE}
+    - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+    - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+    - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+    - GOOGLE_OAUTH_CALLBACK_URL=${GOOGLE_OAUTH_CALLBACK_URL}
+    - SMTP_ADDRESS=${SMTP_ADDRESS}
+    - SMTP_PORT=${SMTP_PORT}
+    - SMTP_USERNAME=${SMTP_USERNAME}
+    - SMTP_PASSWORD=${SMTP_PASSWORD}
+    - SMTP_DOMAIN=${SMTP_DOMAIN}
+    - SMTP_AUTHENTICATION=${SMTP_AUTHENTICATION}
+    - SMTP_ENABLE_STARTTLS_AUTO=${SMTP_ENABLE_STARTTLS_AUTO}
+    - MAILER_SENDER_EMAIL=${MAILER_SENDER_EMAIL}
+    - MAILER_SENDER_NAME=${MAILER_SENDER_NAME}
+    #- AWS_CHECKSUM_CALCULATION=when_required
+    - AWS_SDK_CONFIG_OPT_OUT=1
+    - AWS_CHECKSUM_CALCULATION=when_supported
 
 services:
-  base: &base
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile
-      args:
-        BUNDLE_WITHOUT: ''
-        EXECJS_RUNTIME: 'Node'
-        RAILS_ENV: 'development'
-        RAILS_SERVE_STATIC_FILES: 'false'
-    tty: true
-    stdin_open: true
-    image: chatwoot:development
-    env_file: .env
-
-  rails:
-    <<: *base
-    build:
-      context: .
-      dockerfile: ./docker/dockerfiles/rails.Dockerfile
-    image: chatwoot-rails:development
-    volumes:
-      - ./:/app:delegated
-      - node_modules:/app/node_modules
-      - packs:/app/public/packs
-      - cache:/app/tmp/cache
-      - bundle:/usr/local/bundle
+  chatwoot-rails:
+    <<: *base-config
     depends_on:
-      - postgres
-      - redis
-      - vite
-      - mailhog
-      - sidekiq
+      chatwoot-postgres:
+        condition: service_healthy
+      chatwoot-redis:
+        condition: service_started
+    entrypoint: /app/docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'sh', '-c', 'rails db:chatwoot_prepare && rails s -p 3000 -b 0.0.0.0']
+    restart: always
     ports:
-      - 3000:3000
-    env_file: .env
-    environment:
-      - VITE_DEV_SERVER_HOST=vite
-      - NODE_ENV=development
-      - RAILS_ENV=development
-    entrypoint: docker/entrypoints/rails.sh
-    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
+     - "3000:3000"
 
-  sidekiq:
-    <<: *base
-    image: chatwoot-rails:development
-    volumes:
-      - ./:/app:delegated
-      - node_modules:/app/node_modules
-      - packs:/app/public/packs
-      - cache:/app/tmp/cache
-      - bundle:/usr/local/bundle
+  chatwoot-sidekiq:
+    <<: *base-config
     depends_on:
-      - postgres
-      - redis
-      - mailhog
-    environment:
-      - NODE_ENV=development
-      - RAILS_ENV=development
-    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+      chatwoot-postgres:
+        condition: service_healthy
+      chatwoot-redis:
+        condition: service_started
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+    restart: always
 
-  vite:
-    <<: *base
-    build:
-      context: .
-      dockerfile: ./docker/dockerfiles/vite.Dockerfile
-    image: chatwoot-vite:development
-    volumes:
-      - ./:/app:delegated
-      - node_modules:/app/node_modules
-      - packs:/app/public/packs
-      - cache:/app/tmp/cache
-      - bundle:/usr/local/bundle
-    ports:
-      - "3036:3036" # Vite dev server
-    environment:
-      - VITE_DEV_SERVER_HOST=0.0.0.0
-      - NODE_ENV=development
-      - RAILS_ENV=development
-    entrypoint: docker/entrypoints/vite.sh
-    command: bin/vite dev
-
-  postgres:
+  chatwoot-postgres:
     image: pgvector/pgvector:pg16
     restart: always
-    ports:
-      - '5432:5432'
     volumes:
-      - postgres:/data/postgres
+      - chatwoot-postgres-data:/var/lib/postgresql/data
+      - ./init-vector.sql:/docker-entrypoint-initdb.d/init-vector.sql
     environment:
-      - POSTGRES_DB=chatwoot
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=${POSTGRES_DATABASE}
+      - POSTGRES_USER=${POSTGRES_USERNAME}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    command: >
+      postgres
+        -c max_connections=200
+        -c shared_buffers=4GB
+        -c effective_cache_size=12GB
+        -c work_mem=64MB
+        -c maintenance_work_mem=1GB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=64MB
+        -c default_statistics_target=200
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c min_wal_size=1GB
+        -c max_wal_size=4GB
+        -c max_worker_processes=4
+        -c max_parallel_workers_per_gather=2
+        -c max_parallel_workers=4
+        -c max_parallel_maintenance_workers=2
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  redis:
+  chatwoot-redis:
     image: redis:alpine
     restart: always
-    command: ["sh", "-c", "redis-server --requirepass \"$REDIS_PASSWORD\""]
-    env_file: .env
+    command: ['sh', '-c', 'redis-server --requirepass "$REDIS_PASSWORD"']
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
-      - redis:/data/redis
-    ports:
-      - '6379:6379'
-
-  mailhog:
-    image: mailhog/mailhog
-    ports:
-      - 1025:1025
-      - 8025:8025
+      - chatwoot-redis-data:/data
 
 volumes:
-  postgres:
-  redis:
-  packs:
-  node_modules:
-  cache:
-  bundle:
+  chatwoot-storage:
+  chatwoot-postgres-data:
+  chatwoot-redis-data:
